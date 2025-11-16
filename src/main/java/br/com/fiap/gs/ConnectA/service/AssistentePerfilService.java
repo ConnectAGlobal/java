@@ -1,11 +1,19 @@
 package br.com.fiap.gs.ConnectA.service;
 
+import br.com.fiap.gs.ConnectA.config.GroqConfig;
+import br.com.fiap.gs.ConnectA.dto.groq.GroqRequest;
+import br.com.fiap.gs.ConnectA.dto.groq.GroqResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,67 +23,164 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AssistentePerfilService {
 
-    private final ChatModel chatModel;
+    private final RestTemplate restTemplate;
+    private final GroqConfig groqConfig;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String PROMPT_PT = """
-        Você é um assistente especializado em análise de currículos e identificação de competências profissionais.
+        Você é um especialista em análise de currículos e extração de competências profissionais.
         
-        Analise o seguinte currículo e extraia as principais habilidades técnicas (hard skills) e competências 
-        comportamentais (soft skills) relevantes para o mercado de trabalho atual.
+        Analise o currículo abaixo e extraia TODAS as habilidades técnicas (hard skills) e competências 
+        comportamentais (soft skills) mencionadas.
         
-        Currículo:
+        CURRÍCULO:
         %s
         
-        Retorne APENAS uma lista de skills separadas por vírgula, sem numeração, explicações ou formatação adicional.
-        Foque em skills modernas e relevantes para o futuro do trabalho.
-        Limite a resposta a no máximo 15 skills mais importantes.
+        INSTRUÇÕES IMPORTANTES:
+        1. Identifique linguagens de programação (Java, Python, JavaScript, C#, etc)
+        2. Identifique frameworks e bibliotecas (Spring Boot, React, Angular, Django, etc)
+        3. Identifique bancos de dados (MySQL, PostgreSQL, MongoDB, Oracle, SQL Server, etc)
+        4. Identifique ferramentas e tecnologias (Docker, Kubernetes, Git, Jenkins, etc)
+        5. Identifique clouds e plataformas (AWS, Azure, GCP, Heroku, etc)
+        6. Identifique metodologias (Scrum, Agile, Kanban, CI/CD, TDD, etc)
+        7. Identifique soft skills (liderança, comunicação, trabalho em equipe, etc)
+        
+        FORMATO DA RESPOSTA:
+        Retorne APENAS um JSON válido no seguinte formato (sem explicações, sem markdown, sem texto adicional):
+        {
+          "skills": ["skill1", "skill2", "skill3"]
+        }
+        
+        IMPORTANTE: 
+        - Retorne APENAS o JSON, nada mais
+        - Não inclua ```json ou ``` 
+        - Liste no máximo 20 skills mais relevantes
+        - Use os nomes exatos das tecnologias conforme aparecem no currículo
         """;
 
     private static final String PROMPT_ES = """
-        Eres un asistente especializado en análisis de currículums e identificación de competencias profesionales.
+        Eres un experto en análisis de currículums y extracción de competencias profesionales.
         
-        Analiza el siguiente currículum y extrae las principales habilidades técnicas (hard skills) y competencias 
-        comportamentales (soft skills) relevantes para el mercado laboral actual.
+        Analiza el currículum a continuación y extrae TODAS las habilidades técnicas (hard skills) y competencias 
+        comportamentales (soft skills) mencionadas.
         
-        Currículum:
+        CURRÍCULUM:
         %s
         
-        Devuelve SOLO una lista de skills separadas por coma, sin numeración, explicaciones o formato adicional.
-        Enfócate en skills modernas y relevantes para el futuro del trabajo.
-        Limita la respuesta a un máximo de 15 skills más importantes.
+        INSTRUCCIONES IMPORTANTES:
+        1. Identifica lenguajes de programación (Java, Python, JavaScript, C#, etc)
+        2. Identifica frameworks y bibliotecas (Spring Boot, React, Angular, Django, etc)
+        3. Identifica bases de datos (MySQL, PostgreSQL, MongoDB, Oracle, SQL Server, etc)
+        4. Identifica herramientas y tecnologías (Docker, Kubernetes, Git, Jenkins, etc)
+        5. Identifica clouds y plataformas (AWS, Azure, GCP, Heroku, etc)
+        6. Identifica metodologías (Scrum, Agile, Kanban, CI/CD, TDD, etc)
+        7. Identifica soft skills (liderazgo, comunicación, trabajo en equipo, etc)
+        
+        FORMATO DE RESPUESTA:
+        Devuelve SOLO un JSON válido en el siguiente formato (sin explicaciones, sin markdown, sin texto adicional):
+        {
+          "skills": ["skill1", "skill2", "skill3"]
+        }
+        
+        IMPORTANTE: 
+        - Devuelve SOLO el JSON, nada más
+        - No incluyas ```json o ``` 
+        - Lista máximo 20 skills más relevantes
+        - Usa los nombres exactos de las tecnologías como aparecen en el currículum
         """;
 
-    /**
-     * Analisa currículo e sugere skills usando Spring AI
-     */
     public List<String> analisarCurriculo(String curriculo, String idioma) {
-        log.debug("Iniciando análise de currículo com IA - Idioma: {}", idioma);
+        log.info("Iniciando análise de currículo com Groq - Idioma: {}", idioma);
+        log.debug("Currículo recebido: {}", curriculo.substring(0, Math.min(100, curriculo.length())) + "...");
 
         try {
-            // Seleciona prompt baseado no idioma
             String promptTemplate = idioma.equals("es-ES") ? PROMPT_ES : PROMPT_PT;
             String promptText = String.format(promptTemplate, curriculo);
 
-            // Cria o prompt
-            Prompt prompt = new Prompt(promptText);
+            GroqRequest request = new GroqRequest();
+            request.setModel(groqConfig.getModel());
+            request.setTemperature(0.3);
+            request.setMaxTokens(500);
+            request.setMessages(List.of(
+                    new GroqRequest.Message("user", promptText)
+            ));
 
-            // Chama a API OpenAI via Spring AI
-            String resposta = chatModel.call(prompt).getResult().getOutput().getContent();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(groqConfig.getApiKey());
 
-            // Processa a resposta (separa as skills por vírgula)
-            List<String> skills = Arrays.stream(resposta.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .limit(15)
-                    .collect(Collectors.toList());
+            HttpEntity<GroqRequest> entity = new HttpEntity<>(request, headers);
 
-            log.info("Análise de currículo concluída - {} skills identificadas", skills.size());
+            log.debug("Chamando Groq API: {}", groqConfig.getApiUrl());
+            GroqResponse response = restTemplate.postForObject(
+                    groqConfig.getApiUrl(),
+                    entity,
+                    GroqResponse.class
+            );
 
+            if (response == null || response.getChoices() == null || response.getChoices().isEmpty()) {
+                log.error("Resposta vazia da API Groq");
+                return List.of();
+            }
+
+            String resposta = response.getChoices().get(0).getMessage().getContent();
+            log.debug("Resposta bruta do Groq: {}", resposta);
+
+            List<String> skills = parseRespostaJSON(resposta);
+
+            if (skills.isEmpty()) {
+                log.warn("Parsing JSON falhou, tentando parsing por vírgula");
+                skills = parseRespostaCsv(resposta);
+            }
+
+            log.info("Análise concluída - {} skills identificadas: {}", skills.size(), skills);
             return skills;
 
         } catch (Exception e) {
-            log.error("Erro ao analisar currículo com IA", e);
+            log.error("Erro ao analisar currículo com Groq", e);
+            throw new RuntimeException("Erro ao processar análise: " + e.getMessage(), e);
+        }
+    }
+
+    private List<String> parseRespostaJSON(String resposta) {
+        try {
+            String jsonLimpo = resposta.trim()
+                    .replaceAll("```json\\s*", "")
+                    .replaceAll("```\\s*", "")
+                    .trim();
+
+            log.debug("JSON limpo: {}", jsonLimpo);
+
+            JsonNode root = objectMapper.readTree(jsonLimpo);
+            JsonNode skillsNode = root.get("skills");
+
+            if (skillsNode != null && skillsNode.isArray()) {
+                List<String> skills = new ArrayList<>();
+                for (JsonNode skillNode : skillsNode) {
+                    String skill = skillNode.asText().trim();
+                    if (!skill.isEmpty()) {
+                        skills.add(skill);
+                    }
+                }
+                return skills;
+            }
+
+            return List.of();
+
+        } catch (Exception e) {
+            log.debug("Não foi possível parsear como JSON: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    private List<String> parseRespostaCsv(String resposta) {
+        return Arrays.stream(resposta.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .filter(s -> !s.toLowerCase().startsWith("aqui"))
+                .filter(s -> !s.toLowerCase().startsWith("segue"))
+                .filter(s -> s.length() > 2)
+                .limit(20)
+                .collect(Collectors.toList());
     }
 }
