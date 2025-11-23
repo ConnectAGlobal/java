@@ -66,7 +66,7 @@ java -jar target/*.jar
 - `PUT  /api/v1/usuarios/{id}` : Atualizar usuário
 - `DELETE /api/v1/usuarios/{id}` : Deletar usuário
 - `POST /api/v1/assistente/analisar-curriculo` : Analisar currículo (assistente)
-
+````
 Obs.: Consulte os controladores em `src/main/java/br/com/fiap/gs/ConnectA/controller` para detalhes das entradas e parâmetros.
 
 **Usando Insomnia (ou outra ferramenta REST)**
