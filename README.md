@@ -99,7 +99,7 @@ Você pode usar o valor retornado em `token` para autorizar outras requisições
 
 Imagem de exemplo do Insomnia (login e resposta):
 
-![Insomnia - exemplo de login e resposta](java\image.png)
+<img src="/insomnia-login-preview.png" alt="Insomnia - login" width="700" />
 
 > Observação: adicione o arquivo de imagem em `docs/insomnia-login-preview.png`. Se preferir, eu posso incluir a imagem no repositório se você me enviar o arquivo diretamente.
 
