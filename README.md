@@ -99,13 +99,10 @@ Você pode usar o valor retornado em `token` para autorizar outras requisições
 
 Imagem de exemplo do Insomnia (login e resposta):
 
-<<<<<<< HEAD
+
 <img src="docs/insomnia-login-preview.png" alt="Insomnia - login" width="700" />
 =======
-<img src="/insomnia-login-preview.png" alt="Insomnia - login" width="700" />
->>>>>>> 2ad8b8cee88ebbcd31934342c6a8967b6bffa34a
 
-> Observação: adicione o arquivo de imagem em `docs/insomnia-login-preview.png`. Se preferir, eu posso incluir a imagem no repositório se você me enviar o arquivo diretamente.
 
 **Configuração**
 - Arquivo principal: `src/main/resources/application.properties`.
